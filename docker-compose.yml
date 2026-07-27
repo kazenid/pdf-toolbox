@@ -1,0 +1,23 @@
+services:
+  pdf-toolbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pdf_toolbox_app
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    environment:
+      - APP_NAME="PDF Toolbox"
+      - APP_ENV=production
+      - APP_DEBUG=false
+      - APP_URL=http://localhost:8001
+      - LOG_CHANNEL=stderr
+      - SESSION_DRIVER=file
+      - CACHE_STORE=file
+      - QUEUE_CONNECTION=sync
+    volumes:
+      - pdf_temp_storage:/var/www/html/storage/app/temp
+
+volumes:
+  pdf_temp_storage:

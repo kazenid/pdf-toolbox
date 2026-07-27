@@ -474,13 +474,44 @@ class PdfController extends Controller
         return $this->convertPdfWithImageMagick($pdfPath, $outputPath, $dpi, $quality_val);
     }
 
+    private function getImageMagickPath()
+    {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $linuxPaths = ['/usr/bin/magick', '/usr/local/bin/magick', '/usr/bin/convert', 'magick', 'convert'];
+            foreach ($linuxPaths as $path) {
+                if (file_exists($path) || shell_exec("which " . escapeshellarg($path) . " 2>/dev/null")) {
+                    return $path;
+                }
+            }
+            return 'magick';
+        }
+
+        $paths = [
+            'C:\\Program Files\\ImageMagick-7.1.2-Q16-HDRI\\magick.exe',
+            'C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe',
+            'C:\\Program Files\\ImageMagick-7.1.0-Q16-HDRI\\magick.exe',
+            'magick.exe',
+            'magick'
+        ];
+
+        foreach ($paths as $path) {
+            if (file_exists($path) || shell_exec("where " . escapeshellarg($path) . " 2>nul")) {
+                return $path;
+            }
+        }
+
+        return 'magick.exe';
+    }
+
     private function convertPdfWithImageMagick($pdfPath, $outputPath, $dpi, $quality)
     {
         // -background white -alpha remove -alpha off -flatten: 
         //   Memastikan background transparan di-composite ke putih sebelum export ke JPG
         //   (JPG tidak support transparency, tanpa ini background jadi hitam)
+        $magickPath = $this->getImageMagickPath();
         $cmd = sprintf(
-            'magick -density %d "%s" -background white -alpha remove -alpha off -flatten -quality %d "%s-%%d.jpg"',
+            '"%s" -density %d "%s" -background white -alpha remove -alpha off -flatten -quality %d "%s-%%d.jpg"',
+            $magickPath,
             $dpi,
             $pdfPath,
             $quality,
@@ -511,7 +542,8 @@ class PdfController extends Controller
         };
 
         try {
-            $cmd = sprintf('magick "%s" -quality %d "%s"', $imagePath, $quality_val, $imagePath);
+            $magickPath = $this->getImageMagickPath();
+            $cmd = sprintf('"%s" "%s" -quality %d "%s"', $magickPath, $imagePath, $quality_val, $imagePath);
             exec($cmd);
         } catch (Exception $e) {
             // Continue even if compression fails
@@ -520,6 +552,16 @@ class PdfController extends Controller
 
     private function getGhostscriptPath()
     {
+        if (PHP_OS_FAMILY !== 'Windows') {
+            $linuxPaths = ['/usr/bin/gs', '/usr/local/bin/gs', 'gs'];
+            foreach ($linuxPaths as $path) {
+                if (file_exists($path) || shell_exec("which " . escapeshellarg($path) . " 2>/dev/null")) {
+                    return $path;
+                }
+            }
+            return 'gs';
+        }
+
         // Try common Ghostscript paths on Windows
         $paths = [
             'C:\\Program Files\\gs\\gs10.01.2\\bin\\gswin64c.exe',
@@ -531,7 +573,7 @@ class PdfController extends Controller
         ];
 
         foreach ($paths as $path) {
-            if (file_exists($path) || shell_exec("where {$path} 2>nul")) {
+            if (file_exists($path) || shell_exec("where " . escapeshellarg($path) . " 2>nul")) {
                 return $path;
             }
         }
@@ -575,7 +617,8 @@ class PdfController extends Controller
 
         // Fallback using identify (ImageMagick) if GS fails
         if ($count <= 0) {
-            $cmdIdentify = "magick identify -format %n \"{$path}\"";
+            $magickPath = $this->getImageMagickPath();
+            $cmdIdentify = "\"{$magickPath}\" identify -format %n \"{$path}\"";
             $outputIdentify = shell_exec($cmdIdentify);
             $count = (int)trim($outputIdentify);
         }
